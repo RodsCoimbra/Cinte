@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-df = pd.read_csv("DCOILBRENTEUv2.csv")
+df = pd.read_csv("Lab2/DCOILBRENTEUv2.csv")
 df1 = df['DCOILBRENTEU']
 min = df1.min()
 max = df1.max()

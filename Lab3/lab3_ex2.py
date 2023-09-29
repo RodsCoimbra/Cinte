@@ -28,7 +28,7 @@ plt.title("Variação do preço do óleo")
 
 
 # Com o outro ficheiro
-df = pd.read_csv("Teste1.csv", sep=";", decimal=",")
+df = pd.read_csv("Teste1.csv", sep=";", decimal=",") # É preciso correr primeiro o lab3_ex1 para ter este ficheiro
 var = variacao(df["Close"])
 HighLow = highslows(df["High"], df["Low"])
 plt.figure()
