@@ -6,6 +6,13 @@ FS = FuzzySystem()
 
 df = pd.read_csv('ACI23-24_Proj1_SampleData.csv', sep=',', decimal='.')
 
+Nomes = df.columns
+for i, name in enumerate(Nomes[:6]):
+    plt.scatter(np.full(df[name].size,i), df[name])
+plt.ylim(0, 1.1)
+plt.xticks(np.arange(6), Nomes[:6])
+plt.show()
+
 CPU1 = TriangleFuzzySet(0, 0, 0.55, term="Low")
 CPU2 = TriangleFuzzySet(0.35, 0.5, 0.7, term="Medium")
 CPU3 = TrapezoidFuzzySet(0.6, 0.90, 1, 1, term="High")
