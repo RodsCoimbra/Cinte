@@ -81,7 +81,8 @@ def SSE():
 # MAIN
 if __name__ == '__main__':
 
-    df = pd.read_csv('ACI23-24_Proj1_SampleData.csv', sep=',', decimal='.')
+    df = pd.read_csv('Projeto/ACI23-24_Proj1_SampleData.csv',
+                     sep=',', decimal='.')
     Lat_1 = TrapezoidFuzzySet(0.4, 0.7, 1, 1, term='High')
     Lat_2 = TrapezoidFuzzySet(0, 0, 0.3, 0.6, term='Low')
     FS1.add_linguistic_variable("Latency", LinguisticVariable(
@@ -123,9 +124,11 @@ if __name__ == '__main__':
     """ FS.produce_figure("Fuzzy.pdf") """
 
     # Rules
-    FS.add_rules(["IF ProcessorLoad IS Low THEN CLPVariation IS Increase",
-                  "IF ProcessorLoad IS Medium THEN CLPVariation IS Maintain",
-                  "IF ProcessorLoad IS High THEN CLPVariation IS Decreased"])
+    FS.add_rules(["IF (ProcessorLoad IS Low) THEN (CLPVariation IS Increase)",
+                  "IF (ProcessorLoad IS Medium) THEN (CLPVariation IS Maintain)",
+                  "IF (ProcessorLoad IS Medium) THEN (CLPVariation IS Maintain)"
+                  "IF (ProcessorLoad IS High) AND (NOT (Fuzzy1  High)) THEN (CLPVariation IS Marginal Decreased)",
+                  "IF (ProcessorLoad IS High) AND (Fuzzy1 IS High) THEN (CLPVariation IS Decreased)"])
     # ----------------------------------------------------
     # data_analysis()
     # grafico()
