@@ -81,16 +81,11 @@ def SSE():
 # MAIN
 if __name__ == '__main__':
 
-    df = pd.read_csv('Projeto/ACI23-24_Proj1_SampleData.csv',
-                     sep=',', decimal='.')
+    df = pd.read_csv('ACI23-24_Proj1_SampleData.csv', sep=',', decimal='.')
     Lat_1 = TrapezoidFuzzySet(0.4, 0.7, 1, 1, term='High')
     Lat_2 = TrapezoidFuzzySet(0, 0, 0.3, 0.6, term='Low')
     FS1.add_linguistic_variable("Latency", LinguisticVariable(
         [Lat_1, Lat_2], universe_of_discourse=[0, 1]))
-    Memory1 = TrapezoidFuzzySet(0, 0, 0.6, 0.7, term="Good")
-    Memory2 = TrapezoidFuzzySet(0.6, 0.7, 1, 1, term="Full")
-    FS1.add_linguistic_variable("MemoryUsage", LinguisticVariable(
-        [Memory1, Memory2], universe_of_discourse=[0, 1]))
     OutB_1 = TrapezoidFuzzySet(0.5, 0.8, 1, 1, term='High')
     OutB_2 = TrapezoidFuzzySet(0, 0, 0.4, 0.7, term='Low')
     FS1.add_linguistic_variable("OutBandwidth", LinguisticVariable(
@@ -98,7 +93,7 @@ if __name__ == '__main__':
     Fuzzy1 = AutoTriangle(
         3, terms=["Low", "Medim", "High"], universe_of_discourse=[0, 1])
     FS1.add_linguistic_variable("Fuzzy1", Fuzzy1)
-
+    FS1.produce_figure()
     # Rules
     FS1.add_rules(["IF (MemoryUsage IS Good) AND (OutBandwidth IS Low) THEN (Fuzzy1 IS Low)",
                    "IF (Latency IS High) AND (MemoryUsage IS Good) AND (OutBandwidth IS High) THEN (Fuzzy1 IS Low)",
@@ -122,7 +117,10 @@ if __name__ == '__main__':
     FS.add_linguistic_variable("CLPVariation", CLP)
 
     """ FS.produce_figure("Fuzzy.pdf") """
-
+    """ Memory1 = TrapezoidFuzzySet(0, 0, 0.6, 0.7, term="Good")
+    Memory2 = TrapezoidFuzzySet(0.6, 0.7, 1, 1, term="Full")
+    FS1.add_linguistic_variable("MemoryUsage", LinguisticVariable(
+        [Memory1, Memory2], universe_of_discourse=[0, 1])) """
     # Rules
     FS.add_rules(["IF (ProcessorLoad IS Low) THEN (CLPVariation IS Increase)",
                   "IF (ProcessorLoad IS Medium) THEN (CLPVariation IS Maintain)",
