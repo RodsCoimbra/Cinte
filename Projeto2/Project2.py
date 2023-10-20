@@ -213,8 +213,8 @@ if __name__ == '__main__':
     # Read data from csv files
     start = pd.to_datetime('01-01-2020', dayfirst=True)
     end = pd.to_datetime('31-12-2022', dayfirst=True)
-    start = pd.to_datetime('01-08-2023', dayfirst=True)
-    end = pd.to_datetime('15-09-2023', dayfirst=True)
+    """ start = pd.to_datetime('01-08-2023', dayfirst=True)
+    end = pd.to_datetime('15-09-2023', dayfirst=True) """
     # for i in path:
     #     df[i] = pd.read_csv('Data/' + i + '.csv', sep=';', decimal='.',
     #                         usecols=['Date', 'Close'])
@@ -244,13 +244,11 @@ if __name__ == '__main__':
     #                             arr = [ j1, j2, i1, i2, i3, i4]
 
 
-    df = pd.read_csv('Data/' + 'AAL' + '.csv', sep=';', decimal='.', usecols=['Date', 'Close'])
+    df = pd.read_csv('Data/' + 'AAPL' + '.csv', sep=';', decimal='.', usecols=['Date', 'Close'])
     df['Date'] = pd.to_datetime(df['Date'], dayfirst=True)
     df = df[(df['Date'] >= start) & (df['Date'] <= end)]
     diff = pd.Series(df['Close'].diff())
     df['Gain'] = diff.where(diff > 0, 0)
     df['Loss'] = abs(diff.where(diff < 0, 0))
     df = RSI(df)
-    """ EA() """
-    df.to_csv("Teste.csv")
-    print("\n\n", ROI_results(7, 14, 15, 70, 15,  75))
+    EA()
