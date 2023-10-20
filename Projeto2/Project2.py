@@ -32,15 +32,13 @@ def RS(avg_gain, avg_loss):
 
 
 def ROI_results(RSI_short, RSI_long, lll, ull, lls, uls):
-    if (RSI_long != 0 and RSI_short != 0 and RSI_short % 7 != 0 and RSI_long % 7 != 0 and RSI_short > 21 and RSI_long > 21
-            and lll % 5 != 0 and ull % 5 != 0 and lls % 5 != 0 and uls % 5 != 0
-            and lll > 100 and ull > 100 and lls > 100 and uls > 100):
-        print("ERRO, parametro mal")
-        return
+    # if (RSI_long != 0 and RSI_short != 0 and RSI_short % 7 != 0 and RSI_long % 7 != 0 and RSI_short > 21 and RSI_long > 21
+    #         and lll % 5 != 0 and ull % 5 != 0 and lls % 5 != 0 and uls % 5 != 0
+    #         and lll > 100 and ull > 100 and lls > 100 and uls > 100):
+    #     print("ERRO, parametro mal")
+    #     return
     RSI_period_long = 'RSI_' + str(RSI_long)
     RSI_period_short = 'RSI_' + str(RSI_short)
-    # df['RSI_long'] = 100 - (100 / (1 + df[RSI_period_long]))
-    # df['RSI_short'] = 100 - (100 / (1 + df[RSI_period_short]))
     flag_short = False
     flag_long = False
     Roi_short = []
@@ -82,20 +80,20 @@ def evaluate(individual):
     genes = np.zeros(6, dtype=int)
     for idx, vars in enumerate(individual):
         genes[idx] = vars
-    if (genes[2]<=20 and genes[2]>=0 and genes[3]<=20 and genes[3]>=0 and genes[4]<=20 and genes[4]>=0 and genes[5]<=20 and genes[5]>=0 and
-         genes[0] >= 1 and genes[0] <= 3 and genes[1] >= 1 and genes[1] <= 3):
-        genes[0] *= 7
-        genes[1] *= 7
-        genes[2] *= 5
-        genes[3] *= 5
-        genes[4] *= 5
-        genes[5] *= 5
-        return ROI_results(genes[0], genes[1], genes[2], genes[3], genes[4], genes[5]),
-    else:
-        for i in genes:
-            print(i)
-        print("ERRO, parametro mal")
-        exit(0)
+    # if (genes[2]<=20 and genes[2]>=0 and genes[3]<=20 and genes[3]>=0 and genes[4]<=20 and genes[4]>=0 and genes[5]<=20 and genes[5]>=0 and
+    #      genes[0] >= 1 and genes[0] <= 3 and genes[1] >= 1 and genes[1] <= 3):
+    genes[0] *= 7
+    genes[1] *= 7
+    genes[2] *= 5
+    genes[3] *= 5
+    genes[4] *= 5
+    genes[5] *= 5
+    return ROI_results(genes[0], genes[1], genes[2], genes[3], genes[4], genes[5]),
+    # else:
+    #     for i in genes:
+    #         print(i)
+    #     print("ERRO, parametro mal")
+    #     exit(0)
 
 def create_EA():
     creator.create("FitnessMax", base.Fitness, weights=(1.0,))
@@ -124,9 +122,8 @@ def create_EA():
     return toolbox
 
 
-def EA():
+def EA(toolbox):
     
-    toolbox = create_EA()
 
     pop = toolbox.population(n=100)
 
@@ -140,8 +137,9 @@ def EA():
 
     while g < 100:
         # A new generation
+        Max_early = -1000
+        g_early = 0
         g = g + 1
-        print("-- Generation %i --" % g)
         
         # Select the next generation individuals
         offspring = toolbox.select(pop, len(pop))
@@ -187,16 +185,23 @@ def EA():
         sum2 = sum(x*x for x in fits)
         std = abs(sum2 / length - mean**2)**0.5
         
-        print("  Min %s" % min(fits))
-        print("  Max %s" % max(fits))
-        print("  Avg %s" % mean)
-        print("  Std %s" % std)
-    
-    print("-- End of (successful) evolution --")
+        if(g%20==0):
+            print("-- Generation %i --" % g)
+            print("  Max %s" % max(fits))
+            print("  Avg %s" % mean)
+            print("  Std %s" % std)
+        if (Max_early < max(fits)):
+            Max_early = max(fits)
+            g_early = g
+        if (g - g_early > 15):
+            print("\n-------------------------------Early stop---------------------------")
+            break
     
     best_ind = tools.selBest(pop, 1)[0]
     best_genes = np.array(best_ind)
+
     print("Best individual is",best_genes[0:2] * 7,best_genes[2:]*5, best_ind.fitness.values)
+    return np.append (best_genes[0:2] * 7, best_genes[2:]*5), best_ind.fitness.values[0]
 
 
 
@@ -207,48 +212,45 @@ if __name__ == '__main__':
             'GOOG', 'IBM', 'INTC', 'NVDA', 'XOM']
     df = {}
 
-    RSI_period_long = 7
-    RSI_period_short = 7
-
+    toolbox = create_EA()
     # Read data from csv files
     start = pd.to_datetime('01-01-2020', dayfirst=True)
     end = pd.to_datetime('31-12-2022', dayfirst=True)
-    """ start = pd.to_datetime('01-08-2023', dayfirst=True)
-    end = pd.to_datetime('15-09-2023', dayfirst=True) """
-    # for i in path:
-    #     df[i] = pd.read_csv('Data/' + i + '.csv', sep=';', decimal='.',
-    #                         usecols=['Date', 'Close'])
-    #     df[i]['Date'] = pd.to_datetime(df[i]['Date'], dayfirst=True)
-    #     df[i] = df[i][(df[i]['Date'] >= start) & (df[i]['Date'] <= end)]
-
-    # for i in path:
-    #     diff = pd.Series(df[i]['Close'].diff())
-    #     df[i]['Gain'] = diff.where(diff > 0, 0)
-    #     df[i]['Loss'] = abs(diff.where(diff < 0, 0))
-    #     df[i] = RSI(df[i])
-    
-    
-    
-    
-    
-    #Para apagar
-    # for i1 in range (0,21):
-    #     for i2 in range (0,21):
-    #         for i3 in range (0,21):
-    #             for i4 in range (0,21):
-    #                 for j1 in range(1, 4):
-    #                     for j2 in range(1,4):
-    #                         a = results_int(df['AAPL'], j1, j2, i1, i2, i3, i4)
-    #                         if(a>min):
-    #                             min = a
-    #                             arr = [ j1, j2, i1, i2, i3, i4]
+    # start = pd.to_datetime('01-08-2023', dayfirst=True)
+    # end = pd.to_datetime('15-09-2023', dayfirst=True)
+     
+    for i in path:
+        print("\n\n\n--------------Path ", i, "-------------------------\n\n")
+        df = pd.read_csv('Data/' + i + '.csv', sep=';', decimal='.',
+                            usecols=['Date', 'Close'])
+        df['Date'] = pd.to_datetime(df['Date'], dayfirst=True)
+        df = df[(df['Date'] >= start) & (df['Date'] <= end)]
+        diff = pd.Series(df['Close'].diff())
+        df['Gain'] = diff.where(diff > 0, 0)
+        df['Loss'] = abs(diff.where(diff < 0, 0))
+        df = RSI(df)
 
 
-    df = pd.read_csv('Data/' + 'AAPL' + '.csv', sep=';', decimal='.', usecols=['Date', 'Close'])
-    df['Date'] = pd.to_datetime(df['Date'], dayfirst=True)
-    df = df[(df['Date'] >= start) & (df['Date'] <= end)]
-    diff = pd.Series(df['Close'].diff())
-    df['Gain'] = diff.where(diff > 0, 0)
-    df['Loss'] = abs(diff.where(diff < 0, 0))
-    df = RSI(df)
-    EA()
+        runs = 30
+        Value = np.zeros(runs)
+        Best_genes = np.zeros([runs, 6])
+        for j in range(0, runs):
+            print("\n\n--------------Run ", j, "-------------------------")
+            Best_genes[j], Value[j] = EA(toolbox)
+        MAX = np.max(Value)
+        indmax = np.argmax(Value)
+        MIN  = np.min(Value)
+        STD = np.std(Value)
+        Mean = np.mean(Value)
+        print("MAX:", MAX)
+        print("MIN:", MIN)
+        print("Mean:", Mean)
+        print("STD:", STD)
+        print("Best genes:", Best_genes[indmax])
+        np.save('Resultados/Best_genes/Best_' + i +'.npy', Best_genes)
+        np.save('Resultados/Value/Val_'+ i +'.npy', Value)
+        plt.figure(figsize=(12,10))
+        plt.boxplot(Value)
+    plt.show()
+
+   
