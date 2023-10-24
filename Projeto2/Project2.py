@@ -16,6 +16,9 @@ def ROI_long(sell, buy):
 def ROI_short(sell, buy):
     return ((sell - buy) / sell) * 100
 
+#Max = max se long e Max = min se short
+def drawdown(max, min):
+    return ((max - min) / max) *100
 
 def RSI(df):
     df['RSI_7'] = 100 - (100 / (1 +RS(df['Gain'].rolling(7).mean(),
@@ -31,69 +34,142 @@ def RS(avg_gain, avg_loss):
     return avg_gain / avg_loss
 
 
-def ROI_results(RSI_short, RSI_long, lll, ull, lls, uls):
-    # if (RSI_long != 0 and RSI_short != 0 and RSI_short % 7 != 0 and RSI_long % 7 != 0 and RSI_short > 21 and RSI_long > 21
-    #         and lll % 5 != 0 and ull % 5 != 0 and lls % 5 != 0 and uls % 5 != 0
-    #         and lll > 100 and ull > 100 and lls > 100 and uls > 100):
-    #     print("ERRO, parametro mal")
-    #     return
-    RSI_period_long = 'RSI_' + str(RSI_long)
-    RSI_period_short = 'RSI_' + str(RSI_short)
-    flag_short = False
-    flag_long = False
-    Roi_short = []
-    Roi_long = []
-    sell_short = 0
-    buy_long = 0
-    for idx, [valueshort, valuelong] in enumerate(zip(df[RSI_period_short], df[RSI_period_long])):
-        if (df[RSI_period_short].size == idx + 2):
-            if (flag_short):
-                buy_short = df['Close'].iloc[idx+1]
-                flag_short = False
-                Roi_short = np.append(
-                    Roi_short, ROI_short(sell_short, buy_short))
-            if (flag_long):
-                sell_long = df['Close'].iloc[idx+1]
-                flag_long = False
-                Roi_long = np.append(Roi_long, ROI_long(sell_long, buy_long))
-            break
+def dados_value(RSI, limit, type, index):
+    if(type == 'short' or type == 0):
+        return int(dados[RSI*21+limit][index])
+    if(type == 'long' or type == 1):
+        return int(dados[RSI*21+limit+63][index])
+    else:
+        print("ERRO, type mal")
+        exit(1)
 
+def dados_size(RSI, limit, type):
+    if(type == 'short' or type == 0):
+        if len(dados[RSI*21+limit]) == 0:
+            return 0
+        return dados[RSI*21+limit].size
+    if(type == 'long' or type == 1):
+        if len(dados[RSI*21+limit+63]) == 0:
+            return 0
+        return dados[RSI*21+limit+63].size
+    else:
+        print("ERRO, type mal")
+        exit(1)
+
+def ROI_results(RSI_short, RSI_long, lll, ull, lls, uls):
+
+    #short
+    #print(7*(1+RSI_short), 7*(1+RSI_long), 5*lll, 5*ull, 5*lls, 5*uls, "\n")
+    #print(RSI_short, RSI_long, lll, ull, lls, uls, "\n")
+    flag = False
+    Roi_short = []
+    sell_short = 0
+    index_buy = 0
+    index_sell = 0  
+    RSI_period_short = 'RSI_' + str((RSI_short+1)*7)
+    venda_final = False
+    if(dados_size(RSI_short, lls, 'short') == 0):
+        venda_final = True
+    while True:
+        if(flag == False):
+            if (index_sell >= dados_size(RSI_short, uls, 'short')):
+                break
+            else:
+                if (venda_final == True or dados_value(RSI_short, lls, 'short', index_buy) < dados_value(RSI_short, uls, 'short', index_sell)):  
+                    if(index_buy+1 >= dados_size(RSI_short, lls, 'short')):
+                        sell_short = df['Close'].iloc[dados_value(RSI_short, uls, 'short', index_sell)]
+                        buy_short = df['Close'].iloc[df[RSI_period_short].size-1]
+                        Roi_short = np.append(Roi_short, ROI_short(sell_short, buy_short))   
+                        break         
+
+                    else:                 #Caso em que não terminou o array do buy
+                        index_buy+=1  
+
+                else:
+                    if(dados_value(RSI_short, lls, 'short', index_buy) == dados_value(RSI_short, uls, 'short', index_sell)):
+                        index_sell+=1
+                        continue
+                    sell_short = df['Close'].iloc[dados_value(RSI_short, uls, 'short', index_sell)]
+                    flag = True
+                    while (dados_value(RSI_short, lls, 'short', index_buy) > dados_value(RSI_short, uls, 'short', index_sell)):
+                        if (index_sell+1 >= dados_size(RSI_short, uls, 'short')):
+                            index_sell+=1
+                            break
+                        else:
+                            index_sell+=1
+        else:               
+            buy_short = df['Close'].iloc[dados_value(RSI_short, lls, 'short', index_buy)]
+            flag = False
+            Roi_short = np.append(Roi_short, ROI_short(sell_short, buy_short))
+
+    #long
+    RSI_period_long = 'RSI_' + str((RSI_long+1)*7)
+    index_buy = 0
+    index_sell = 0  
+    Roi_long = []
+    flag = False
+    venda_final = False
+    if(dados_size(RSI_long, ull, 'long') == 0):
+        venda_final = True
+    while True:
+        if(flag == False):
+            if (index_buy >= dados_size(RSI_long, lll, 'long')):
+                break
+            else:
+                if (venda_final == True or dados_value(RSI_long, lll, 'long', index_buy) > dados_value(RSI_long, ull, 'long', index_sell)):  
+                    if(index_sell+1 >= dados_size(RSI_long, ull, 'long')):                #Se tiver mais algum para vender então vende                                                  
+                        buy_long = df['Close'].iloc[dados_value(RSI_long, lll, 'long', index_buy)]
+                        sell_long = df['Close'].iloc[df[RSI_period_long].size-1]
+                        Roi_long = np.append(Roi_long, ROI_long(sell_long, buy_long))
+                        break 
+                    else:                           #Caso em que não terminou o array do sell        
+                        index_sell+=1
+                else:
+                    if(dados_value(RSI_long, lll, 'long', index_buy) == dados_value(RSI_long, ull, 'long', index_sell)):
+                        index_buy+=1
+                        continue
+                    buy_long = df['Close'].iloc[dados_value(RSI_long, lll, 'long', index_buy)]
+                    flag = True
+                    while (dados_value(RSI_long, lll, 'long', index_buy) < dados_value(RSI_long, ull, 'long', index_sell)):
+                        if (index_buy+1 >= dados_size(RSI_long, lll, 'long')):
+                            index_buy+=1
+                            break
+                        else:
+                            index_buy+=1
         else:
-            if (valueshort > uls and df[RSI_period_short].iloc[idx+1] < uls and flag_short == False):
-                sell_short = df['Close'].iloc[idx+1]
-                flag_short = True
-            elif (valueshort > lls and df[RSI_period_short].iloc[idx+1] < lls and flag_short == True):
-                buy_short = df['Close'].iloc[idx+1]
-                flag_short = False
-                Roi_short = np.append(
-                    Roi_short, ROI_short(sell_short, buy_short))
-            if (valuelong < lll and df[RSI_period_long].iloc[idx+1] > lll and flag_long == False):
-                buy_long = df['Close'].iloc[idx+1]
-                flag_long = True
-            elif (valuelong < ull and df[RSI_period_long].iloc[idx+1] > ull and flag_long == True):
-                sell_long = df['Close'].iloc[idx+1]
-                flag_long = False
-                Roi_long = np.append(Roi_long, ROI_long(sell_long, buy_long))
+            sell_long = df['Close'].iloc[dados_value(RSI_long, ull, 'long', index_sell)]
+            flag = False
+            Roi_long = np.append(Roi_long, ROI_long(sell_long, buy_long))
+
+    # print("ROI_short:", np.sum(Roi_short))
+    # print("ROI_long:", np.sum(Roi_long))
     return ROI_total(np.sum(Roi_short), np.sum(Roi_long))
+
+
+# Aceder aos dados[(Period)*21+(LImite)+63*(long:1, short:0)]
+def pre_processing(df, dados):
+    index = -1
+    for i in range(7,22,7):
+        RSI_period= 'RSI_' + str(i)
+        for j in range(0,101,5):
+            index+=1
+            for idx, value in enumerate(df[RSI_period]): #0-62 short
+                if(df[RSI_period].size == idx+1):
+                    break
+                else:
+                    if (value > j and df[RSI_period].iloc[idx+1] < j):
+                        dados[index] = np.append(dados[index],idx+1)
+                    if (value < j and df[RSI_period].iloc[idx+1] > j): #63-125 long
+                        dados[index+63] = np.append(dados[index+63],idx+1)  # mais 63 porque os primeiros 62 indices (21_limits*3_rsi_period) são do short
+
+
 
 def evaluate(individual):
     genes = np.zeros(6, dtype=int)
     for idx, vars in enumerate(individual):
         genes[idx] = vars
-    # if (genes[2]<=20 and genes[2]>=0 and genes[3]<=20 and genes[3]>=0 and genes[4]<=20 and genes[4]>=0 and genes[5]<=20 and genes[5]>=0 and
-    #      genes[0] >= 1 and genes[0] <= 3 and genes[1] >= 1 and genes[1] <= 3):
-    genes[0] *= 7
-    genes[1] *= 7
-    genes[2] *= 5
-    genes[3] *= 5
-    genes[4] *= 5
-    genes[5] *= 5
-    return ROI_results(genes[0], genes[1], genes[2], genes[3], genes[4], genes[5]),
-    # else:
-    #     for i in genes:
-    #         print(i)
-    #     print("ERRO, parametro mal")
-    #     exit(0)
+    return ROI_results(genes[0]-1, genes[1]-1, genes[2], genes[3], genes[4], genes[5]),
+    
 
 def create_EA():
     creator.create("FitnessMax", base.Fitness, weights=(1.0,))
@@ -134,11 +210,10 @@ def EA(toolbox):
         ind.fitness.values = fit
 
     g = 0
-
+    Max_early = -1000
+    g_early = 0
     while g < 100:
-        # A new generation
-        Max_early = -1000
-        g_early = 0
+        # A new generation 
         g = g + 1
         
         # Select the next generation individuals
@@ -187,37 +262,127 @@ def EA(toolbox):
         
         if(g%20==0):
             print("-- Generation %i --" % g)
-            print("  Max %s" % max(fits))
+            print("  Max %s" % Max_early)
             print("  Avg %s" % mean)
             print("  Std %s" % std)
+
         if (Max_early < max(fits)):
             Max_early = max(fits)
-            g_early = g
-        if (g - g_early > 15):
-            print("\n-------------------------------Early stop---------------------------")
-            break
-    
-    best_ind = tools.selBest(pop, 1)[0]
+            best_ind = tools.selBest(pop, 1)[0]
+            # g_early = g
+        # if (g - g_early > 40):
+        #     print("\n-------------------------------Early stop---------------------------")
+        #     break
     best_genes = np.array(best_ind)
-
-    print("Best individual is",best_genes[0:2] * 7,best_genes[2:]*5, best_ind.fitness.values)
+    print("Best individual is",best_genes[0:2] * 7,best_genes[2:]*5, best_ind.fitness.values[0])
     return np.append (best_genes[0:2] * 7, best_genes[2:]*5), best_ind.fitness.values[0]
 
+def drawdown_long(df, index1, index2):
+    min = float('inf')
+    flag_min = False
+    for i in range(index1, index2):
+        if(flag_min == False and df['Close'].iloc[i] > df['Close'].iloc[i+1]):
+            max_local = df['Close'].iloc[i]
+            flag_min = True
+        elif(flag_min == True and df['Close'].iloc[i] < df['Close'].iloc[i+1]):
+            min_local = df['Close'].iloc[i]
+            flag_min = False
+            drawdown_long = drawdown(max_local, min_local)
 
+def ROI_Dd_results(RSI_short, RSI_long, lll, ull, lls, uls):
+    
+    flag = False
+    Roi_short = []
+    sell_short = 0
+    index_buy = 0
+    index_sell = 0  
+    RSI_period_short = 'RSI_' + str((RSI_short+1)*7)
+    venda_final = False
+    if(dados_size(RSI_short, lls, 'short') == 0):
+        venda_final = True
+    while True:
+        if(flag == False):
+            if (index_sell >= dados_size(RSI_short, uls, 'short')):
+                break
+            else:
+                if (venda_final == True or dados_value(RSI_short, lls, 'short', index_buy) < dados_value(RSI_short, uls, 'short', index_sell)):  
+                    if(index_buy+1 >= dados_size(RSI_short, lls, 'short')):
+                        sell_short = df['Close'].iloc[dados_value(RSI_short, uls, 'short', index_sell)]
+                        buy_short = df['Close'].iloc[df[RSI_period_short].size-1]
+                        Roi_short = np.append(Roi_short, ROI_short(sell_short, buy_short))   
+                        break         
 
+                    else:                 #Caso em que não terminou o array do buy
+                        index_buy+=1  
 
+                else:
+                    if(dados_value(RSI_short, lls, 'short', index_buy) == dados_value(RSI_short, uls, 'short', index_sell)):
+                        index_sell+=1
+                        continue
+                    sell_short = df['Close'].iloc[dados_value(RSI_short, uls, 'short', index_sell)]
+                    flag = True
+                    while (dados_value(RSI_short, lls, 'short', index_buy) > dados_value(RSI_short, uls, 'short', index_sell)):
+                        if (index_sell+1 >= dados_size(RSI_short, uls, 'short')):
+                            index_sell+=1
+                            break
+                        else:
+                            index_sell+=1
+        else:               
+            buy_short = df['Close'].iloc[dados_value(RSI_short, lls, 'short', index_buy)]
+            flag = False
+            Roi_short = np.append(Roi_short, ROI_short(sell_short, buy_short))
+
+    #long
+    RSI_period_long = 'RSI_' + str((RSI_long+1)*7)
+    index_buy = 0
+    index_sell = 0  
+    Roi_long = []
+    flag = False
+    venda_final = False
+    if(dados_size(RSI_long, ull, 'long') == 0):
+        venda_final = True
+    while True:
+        if(flag == False):
+            if (index_buy >= dados_size(RSI_long, lll, 'long')):
+                break
+            else:
+                if (venda_final == True or dados_value(RSI_long, lll, 'long', index_buy) > dados_value(RSI_long, ull, 'long', index_sell)):  
+                    if(index_sell+1 >= dados_size(RSI_long, ull, 'long')):                #Se tiver mais algum para vender então vende                                                  
+                        buy_long = df['Close'].iloc[dados_value(RSI_long, lll, 'long', index_buy)]
+                        sell_long = df['Close'].iloc[df[RSI_period_long].size-1]
+                        Roi_long = np.append(Roi_long, ROI_long(sell_long, buy_long))
+                        break 
+                    else:                           #Caso em que não terminou o array do sell        
+                        index_sell+=1
+                else:
+                    if(dados_value(RSI_long, lll, 'long', index_buy) == dados_value(RSI_long, ull, 'long', index_sell)):
+                        index_buy+=1
+                        continue
+                    buy_long = df['Close'].iloc[dados_value(RSI_long, lll, 'long', index_buy)]
+                    flag = True
+                    while (dados_value(RSI_long, lll, 'long', index_buy) < dados_value(RSI_long, ull, 'long', index_sell)):
+                        if (index_buy+1 >= dados_size(RSI_long, lll, 'long')):
+                            index_buy+=1
+                            break
+                        else:
+                            index_buy+=1
+        else:
+            sell_long = df['Close'].iloc[dados_value(RSI_long, ull, 'long', index_sell)]
+            flag = False
+            Roi_long = np.append(Roi_long, ROI_long(sell_long, buy_long))
+    return ROI_total(np.sum(Roi_short), np.sum(Roi_long))
 
 if __name__ == '__main__':
     path = ['AAL', 'AAPL', 'AMZN', 'BAC', 'F',
-            'GOOG', 'IBM', 'INTC', 'NVDA', 'XOM']
+             'GOOG', 'IBM', 'INTC', 'NVDA', 'XOM']
     df = {}
 
     toolbox = create_EA()
     # Read data from csv files
-    start = pd.to_datetime('01-01-2020', dayfirst=True)
-    end = pd.to_datetime('31-12-2022', dayfirst=True)
-    # start = pd.to_datetime('01-08-2023', dayfirst=True)
-    # end = pd.to_datetime('15-09-2023', dayfirst=True)
+    # start = pd.to_datetime('01-01-2020', dayfirst=True)
+    # end = pd.to_datetime('31-12-2022', dayfirst=True)
+    start = pd.to_datetime('01-08-2023', dayfirst=True)
+    end = pd.to_datetime('15-09-2023', dayfirst=True)
      
     for i in path:
         print("\n\n\n--------------Path ", i, "-------------------------\n\n")
@@ -229,28 +394,32 @@ if __name__ == '__main__':
         df['Gain'] = diff.where(diff > 0, 0)
         df['Loss'] = abs(diff.where(diff < 0, 0))
         df = RSI(df)
-
-
+        dados = [[] for _ in range(21*3*2)]   
+        pre_processing(df,dados)
+        df.to_csv("df.csv")
         runs = 30
         Value = np.zeros(runs)
         Best_genes = np.zeros([runs, 6])
-        for j in range(0, runs):
-            print("\n\n--------------Run ", j, "-------------------------")
-            Best_genes[j], Value[j] = EA(toolbox)
-        MAX = np.max(Value)
-        indmax = np.argmax(Value)
-        MIN  = np.min(Value)
-        STD = np.std(Value)
-        Mean = np.mean(Value)
-        print("MAX:", MAX)
-        print("MIN:", MIN)
-        print("Mean:", Mean)
-        print("STD:", STD)
-        print("Best genes:", Best_genes[indmax])
-        np.save('Resultados/Best_genes/Best_' + i +'.npy', Best_genes)
-        np.save('Resultados/Value/Val_'+ i +'.npy', Value)
-        plt.figure(figsize=(12,10))
-        plt.boxplot(Value)
-    plt.show()
 
-   
+
+
+
+
+    #     for j in range(0, runs):
+    #         print("\n\n--------------Run ", j, "-------------------------")
+    #         Best_genes[j], Value[j] = EA(toolbox)
+    #     MAX = np.max(Value)
+    #     indmax = np.argmax(Value)
+    #     MIN  = np.min(Value)
+    #     STD = np.std(Value)
+    #     Mean = np.mean(Value)
+    #     print("MAX:", MAX)
+    #     print("MIN:", MIN)
+    #     print("Mean:", Mean)
+    #     print("STD:", STD)
+    #     print("Best genes:", Best_genes[indmax])
+    #     np.save('Resultados/Best_genes/Best_' + i +'.npy', Best_genes)
+    #     np.save('Resultados/Value/Val_'+ i +'.npy', Value)
+    #     plt.figure(figsize=(12,10))
+    #     plt.boxplot(Value)
+    # plt.show()
