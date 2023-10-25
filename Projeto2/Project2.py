@@ -4,6 +4,7 @@ import pandas as pd
 from deap import base, creator, tools
 from sys import exit
 import random
+import bisect
 
 def ROI_total(Roi_short_sum, Roi_long_sum):
     return (Roi_short_sum + Roi_long_sum) / 2
@@ -55,6 +56,67 @@ def dados_size(RSI, limit, type):
         print("ERRO, type mal")
         exit(1)
 
+#flag= True se o primeiro é min e False se o primeiro é minimo
+def drawdown_flag_init(idx):
+    while True: #Descobre se o primeiro é maximo ou minimo, caso seja igual continua até encontrar um diferente
+        
+        if(df_close_value(idx) > df_close_value(idx + 1)): #Caso em que o primeiro é máximo
+            flag = False        #Quando False quer dizer que o próximo a encontrar é um minimo
+            break
+
+        elif(df_close_value(idx) < df_close_value(idx + 1)): #Caso em que o primeiro é minimo
+            flag = True         #Quando True quer dizer que o próximo a encontrar é um máximo
+            break
+
+        idx+=1
+    return flag
+
+def find_next_index(Array,idx):
+    next_index = bisect.bisect_right(Array, idx)
+    return next_index
+
+def df_close_value(idx):
+    return df['Close'].iloc[int(idx)]
+
+def max_drawdown(df, inicio, fim):
+    flag_max = drawdown_flag_init(inicio)
+    if(flag_max == True):  #Caso em que o primeiro é minimo
+        idx_max = find_next_index(Array_max, inicio)
+        if(Array_max[idx_max] > fim):
+            return 0        #Não há drawdown, porque foi sempre a subir
+        idx_min = find_next_index(Array_min, Array_max[idx_max])
+        max_drawdown = drawdown(df_close_value(Array_max[idx_max]), df_close_value(Array_min[idx_min]))
+        idx_max+=1
+        idx_min+=1
+    
+    else:                #Caso em que o primeiro é máximo   
+        idx_min = find_next_index(Array_min, inicio)
+        if(Array_min[idx_min] > fim):
+            return drawdown(df_close_value(inicio), df_close_value(fim))        #Tudo foi drawdown, porque foi sempre a descer
+        else:
+            max_drawdown = drawdown(df_close_value(inicio), df_close_value(Array_min[idx_min]))
+            idx_max = find_next_index(Array_max, Array_min[idx_min])
+            idx_min+=1
+            flag_max = True
+
+    while True:
+        if(idx_max == len(Array_max) or Array_max[idx_max] > fim):
+            return max_drawdown
+        elif(idx_min == len(Array_min) or Array_min[idx_min] > fim):
+            DD = drawdown(df_close_value(Array_max[idx_max]), df_close_value(fim))
+            if(DD > max_drawdown):
+                max_drawdown = DD
+            return max_drawdown
+        else:
+            DD = drawdown(df_close_value(Array_max[idx_max]), df_close_value(Array_min[idx_min]))
+            idx_max +=1
+            idx_min +=1
+            if(DD > max_drawdown):
+                max_drawdown = DD
+        
+            
+                
+
 def short_results(RSI_short, lls, uls):
     flag = False
     Roi_short = []
@@ -72,8 +134,8 @@ def short_results(RSI_short, lls, uls):
             else:
                 if (venda_final == True or dados_value(RSI_short, lls, 'short', index_buy) < dados_value(RSI_short, uls, 'short', index_sell)):  
                     if(index_buy+1 >= dados_size(RSI_short, lls, 'short')):
-                        sell_short = df['Close'].iloc[dados_value(RSI_short, uls, 'short', index_sell)]
-                        buy_short = df['Close'].iloc[df[RSI_period_short].size-1]
+                        sell_short = df_close_value(dados_value(RSI_short, uls, 'short', index_sell))
+                        buy_short = df_close_value(df[RSI_period_short].size-1)
                         Roi_short = np.append(Roi_short, ROI_short(sell_short, buy_short))   
                         break         
 
@@ -84,7 +146,7 @@ def short_results(RSI_short, lls, uls):
                     if(dados_value(RSI_short, lls, 'short', index_buy) == dados_value(RSI_short, uls, 'short', index_sell)):
                         index_sell+=1
                         continue
-                    sell_short = df['Close'].iloc[dados_value(RSI_short, uls, 'short', index_sell)]
+                    sell_short = df_close_value(dados_value(RSI_short, uls, 'short', index_sell))
                     flag = True
                     while (dados_value(RSI_short, lls, 'short', index_buy) > dados_value(RSI_short, uls, 'short', index_sell)):
                         if (index_sell+1 >= dados_size(RSI_short, uls, 'short')):
@@ -93,7 +155,7 @@ def short_results(RSI_short, lls, uls):
                         else:
                             index_sell+=1
         else:               
-            buy_short = df['Close'].iloc[dados_value(RSI_short, lls, 'short', index_buy)]
+            buy_short = df_close_value(dados_value(RSI_short, lls, 'short', index_buy))
             flag = False
             Roi_short = np.append(Roi_short, ROI_short(sell_short, buy_short))
     
@@ -147,12 +209,32 @@ def ROI_results(RSI_short, RSI_long, lll, ull, lls, uls):
     return ROI_total(short, long), short, long
 
 
-# Ordenação do array dados:[(Period)*21+(LImite)+63*(long:1, short:0)] (Acedido por função dados_value)
-def pre_processing(df):
-    dados = [[] for _ in range(21*3*2)]
+def pre_processing_drawdown(df):
     Array_max = []
     Array_min = []
+    flag_max = drawdown_flag_init(0)
+    if (flag_max == True):
+        Array_min = np.append(Array_min, 0)
+    else:
+        Array_max = np.append(Array_max, 0)
+
+    for idx, value in enumerate(df['Close']):
+        if(df['Close'].size == idx+1):
+            break               
+        if(flag_max == True and value > df['Close'].iloc[idx+1]):
+            Array_max = np.append(Array_max, idx) 
+            flag_max = False      
+        elif(flag_max == False and value < df['Close'].iloc[idx+1]):
+            Array_min = np.append(Array_min, idx)
+            flag_max = True
+    return Array_max, Array_min
+
+
+# Ordenação do array dados:[(Period)*21+(LImite)+63*(long:1, short:0)] (Acedido por função dados_value)
+def pre_processing_dados(df):
+    dados = [[] for _ in range(21*3*2)]
     index = -1
+    #Dados de todos os indices onde passa os limites do long e do short
     for i in range(7,22,7):
         RSI_period= 'RSI_' + str(i)
         for j in range(0,101,5):
@@ -165,8 +247,7 @@ def pre_processing(df):
                         dados[index] = np.append(dados[index],idx+1)
                     if (value < j and df[RSI_period].iloc[idx+1] >= j): #63-125 long
                         dados[index+63] = np.append(dados[index+63],idx+1)  # mais 63 porque os primeiros 62 indices (21_limits*3_rsi_period) são do short
-                    # if
-    return dados, Array_max, Array_min 
+    return dados
 
 def evaluate(individual):
     genes = np.zeros(6, dtype=int)
@@ -274,17 +355,8 @@ def EA(toolbox):
     print("Best individual is",(best_genes[0:2]+1) * 7,best_genes[2:]*5, best_ind.fitness.values[0])
     return np.append ((best_genes[0:2]+1) * 7, best_genes[2:]*5), best_ind.fitness.values[0]
 
-def drawdown_long(df, index1, index2):
-    min = float('inf')
-    flag_min = False
-    for i in range(index1, index2):
-        if(flag_min == False and df['Close'].iloc[i] > df['Close'].iloc[i+1]):
-            max_local = df['Close'].iloc[i]
-            flag_min = True
-        elif(flag_min == True and df['Close'].iloc[i] < df['Close'].iloc[i+1]):
-            min_local = df['Close'].iloc[i]
-            flag_min = False
-            drawdown_long = drawdown(max_local, min_local)
+
+    
 
 def ROI_Dd_results(RSI_short, RSI_long, lll, ull, lls, uls):
     
@@ -370,16 +442,18 @@ def ROI_Dd_results(RSI_short, RSI_long, lll, ull, lls, uls):
     return ROI_total(np.sum(Roi_short), np.sum(Roi_long))
 
 if __name__ == '__main__':
-    path = ['AAL', 'AAPL', 'AMZN', 'BAC', 'F',
-             'GOOG', 'IBM', 'INTC', 'NVDA', 'XOM']
+    # path = ['AAL', 'AAPL', 'AMZN', 'BAC', 'F',
+    #          'GOOG', 'IBM', 'INTC', 'NVDA', 'XOM']
     df = {}
-
+    path = ['AAPL']
     toolbox = create_EA()
     # Read data from csv files
-    start = pd.to_datetime('01-01-2020', dayfirst=True)
-    end = pd.to_datetime('31-12-2022', dayfirst=True)
-    # start = pd.to_datetime('01-08-2023', dayfirst=True)
-    # end = pd.to_datetime('15-09-2023', dayfirst=True)
+    # start = pd.to_datetime('01-01-2011', dayfirst=True)
+    # end = pd.to_datetime('31-12-2019', dayfirst=True)
+    # start = pd.to_datetime('01-01-2020', dayfirst=True)
+    # end = pd.to_datetime('31-12-2022', dayfirst=True)
+    start = pd.to_datetime('01-08-2023', dayfirst=True)
+    end = pd.to_datetime('15-09-2023', dayfirst=True)
      
     for i in path:
         print("\n\n\n--------------Path ", i, "-------------------------\n\n")
@@ -391,26 +465,34 @@ if __name__ == '__main__':
         df['Gain'] = diff.where(diff > 0, 0)
         df['Loss'] = abs(diff.where(diff < 0, 0))
         df = RSI(df)
-        dados,Array_max,Array_min = pre_processing(df)
+        dados = pre_processing_dados(df)
+        Array_max, Array_min = pre_processing_drawdown(df)
         df.to_csv("df.csv")
         runs = 30
         Value = np.zeros(runs)
-        Best_genes = np.zeros([runs, 6])
-        for j in range(0, runs):
-            print("\n\n--------------Run ", j, "-------------------------")
-            Best_genes[j], Value[j] = EA(toolbox)
-        MAX = np.max(Value)
-        indmax = np.argmax(Value)
-        MIN  = np.min(Value)
-        STD = np.std(Value)
-        Mean = np.mean(Value)
-        print("MAX:", MAX)
-        print("MIN:", MIN)
-        print("Mean:", Mean)
-        print("STD:", STD)
-        print("Best genes:", Best_genes[indmax])
-    #     np.save('Resultados/Best_genes/Best_' + i +'.npy', Best_genes)
-    #     np.save('Resultados/Value/Val_'+ i +'.npy', Value)
-    #     plt.figure(figsize=(12,10))
-    #     plt.boxplot(Value)
+        Best_genes = np.zeros([runs, 6])   
+        plt.plot(df['Date'], df['Close'])  
+        plt.scatter(df['Date'].iloc[Array_max.astype(int)], df['Close'].iloc[Array_max.astype(int)], color='red')
+        plt.scatter(df['Date'].iloc[Array_min.astype(int)], df['Close'].iloc[Array_min.astype(int)], color='green')
+        plt.show()
+        drawdown_long(df, 3, df['Close'].size-1)
+        
+        # plt.plot(df['Date'].iloc[, df['RSI_7'])
+        # for j in range(0, runs):
+        #     print("\n\n--------------Run ", j, "-------------------------")
+        #     Best_genes[j], Value[j] = EA(toolbox)
+        # MAX = np.max(Value)
+        # indmax = np.argmax(Value)
+        # MIN  = np.min(Value)
+        # STD = np.std(Value)
+        # Mean = np.mean(Value)
+        # print("MAX:", MAX)
+        # print("MIN:", MIN)
+        # print("Mean:", Mean)
+        # print("STD:", STD)
+        # print("Best genes:", Best_genes[indmax])
+        # np.save('Resultados/Best_genes/Besttrain_' + i +'.npy', Best_genes)
+        # np.save('Resultados/Value/Valtrain_'+ i +'.npy', Value)
+        # plt.figure(figsize=(12,10))
+        # plt.boxplot(Value)
     # plt.show()
