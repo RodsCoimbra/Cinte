@@ -16,9 +16,9 @@ def ROI_long(sell, buy):
 def ROI_short(sell, buy):
     return ((sell - buy) / sell) * 100
 
-#Max = max se long e Max = min se short
+
 def drawdown(max, min):
-    return ((max - min) / max) *100
+    return abs((max - min) / max) *100
 
 def RSI(df):
     df['RSI_7'] = 100 - (100 / (1 +RS(df['Gain'].rolling(7).mean(),
@@ -78,39 +78,46 @@ def find_next_index(Array,idx):
 def df_close_value(idx):
     return df['Close'].iloc[int(idx)]
 
-def max_drawdown(df, inicio, fim):
-    flag_max = drawdown_flag_init(inicio)
-    if(flag_max == True):  #Caso em que o primeiro é minimo
-        idx_max = find_next_index(Array_max, inicio)
-        if(Array_max[idx_max] > fim):
-            return 0        #Não há drawdown, porque foi sempre a subir
-        idx_min = find_next_index(Array_min, Array_max[idx_max])
-        max_drawdown = drawdown(df_close_value(Array_max[idx_max]), df_close_value(Array_min[idx_min]))
-        idx_max+=1
-        idx_min+=1
+def max_drawdown(df, inicio, fim, type):
+    if(type == 'short' or type == 0):
+        Array1 = Array_min
+        Array2 = Array_max 
+        flag_max = not(drawdown_flag_init(inicio))
+    if(type == 'long' or type == 1):
+        Array1 = Array_max
+        Array2 = Array_min 
+        flag_max = drawdown_flag_init(inicio)
+    if(flag_max == True):  #Caso em que o primeiro é minimo no caso do long e máximo no caso do short
+        idx_Arr1 = find_next_index(Array1, inicio)
+        if(Array1[idx_Arr1] > fim):
+            return 0        #Não há drawdown, porque foi sempre a subir/descer(depende do tipo)
+        idx_Arr2 = find_next_index(Array2, Array1[idx_Arr1])
+        max_drawdown = drawdown(df_close_value(Array1[idx_Arr1]), df_close_value(Array2[idx_Arr2]))
+        idx_Arr1+=1
+        idx_Arr2+=1
     
-    else:                #Caso em que o primeiro é máximo   
-        idx_min = find_next_index(Array_min, inicio)
-        if(Array_min[idx_min] > fim):
-            return drawdown(df_close_value(inicio), df_close_value(fim))        #Tudo foi drawdown, porque foi sempre a descer
+    else:                #Caso em que o primeiro é máximo no caso do long e minimo no caso do short
+        idx_Arr2 = find_next_index(Array2, inicio)
+        if(Array2[idx_Arr2] > fim):
+            return drawdown(df_close_value(inicio), df_close_value(fim))        #Tudo foi drawdown, porque foi sempre a descer/subir(depende do tipo)
         else:
-            max_drawdown = drawdown(df_close_value(inicio), df_close_value(Array_min[idx_min]))
-            idx_max = find_next_index(Array_max, Array_min[idx_min])
-            idx_min+=1
+            max_drawdown = drawdown(df_close_value(inicio), df_close_value(Array2[idx_Arr2]))
+            idx_Arr1 = find_next_index(Array1, Array2[idx_Arr2])
+            idx_Arr2+=1
             flag_max = True
 
     while True:
-        if(idx_max == len(Array_max) or Array_max[idx_max] > fim):
+        if(idx_Arr1 == len(Array1) or Array1[idx_Arr1] > fim):
             return max_drawdown
-        elif(idx_min == len(Array_min) or Array_min[idx_min] > fim):
-            DD = drawdown(df_close_value(Array_max[idx_max]), df_close_value(fim))
+        elif(idx_Arr2 == len(Array2) or Array2[idx_Arr2] > fim):
+            DD = drawdown(df_close_value(Array1[idx_Arr1]), df_close_value(fim))
             if(DD > max_drawdown):
                 max_drawdown = DD
             return max_drawdown
         else:
-            DD = drawdown(df_close_value(Array_max[idx_max]), df_close_value(Array_min[idx_min]))
-            idx_max +=1
-            idx_min +=1
+            DD = drawdown(df_close_value(Array1[idx_Arr1]), df_close_value(Array2[idx_Arr2]))
+            idx_Arr1 +=1
+            idx_Arr2 +=1
             if(DD > max_drawdown):
                 max_drawdown = DD
         
@@ -228,7 +235,6 @@ def pre_processing_drawdown(df):
             Array_min = np.append(Array_min, idx)
             flag_max = True
     return Array_max, Array_min
-
 
 # Ordenação do array dados:[(Period)*21+(LImite)+63*(long:1, short:0)] (Acedido por função dados_value)
 def pre_processing_dados(df):
@@ -475,7 +481,6 @@ if __name__ == '__main__':
         plt.scatter(df['Date'].iloc[Array_max.astype(int)], df['Close'].iloc[Array_max.astype(int)], color='red')
         plt.scatter(df['Date'].iloc[Array_min.astype(int)], df['Close'].iloc[Array_min.astype(int)], color='green')
         plt.show()
-        drawdown_long(df, 3, df['Close'].size-1)
         
         # plt.plot(df['Date'].iloc[, df['RSI_7'])
         # for j in range(0, runs):
