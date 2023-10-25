@@ -86,19 +86,19 @@ def drawdown_long(inicio, fim):
     if(flag_max == True):                   #Caso em que o primeiro é minimo
         idx_max = find_next_index(Array_max, inicio)
 
-        if(Array_max[idx_max] > fim):
+        if(idx_max >= len(Array_max) or Array_max[idx_max] > fim):
             return 0                        #Não há drawdown, porque foi sempre a subir
         idx_min = find_next_index(Array_min, Array_max[idx_max])
 
     else:                   #Caso em que o primeiro é máximo   
         idx_min = find_next_index(Array_min, inicio)
-        if(Array_min[idx_min] > fim):
+        if(idx_min >= len(Array_min) or Array_min[idx_min] > fim):
             return drawdown(df_close_value(inicio), df_close_value(fim))        #Tudo foi drawdown, porque foi sempre a descer
         max_drawdown = drawdown(df_close_value(inicio), df_close_value(Array_min[idx_min]))
         
         idx_max = find_next_index(Array_max, Array_min[idx_min])
         
-        if(idx_max == len(Array_max) or Array_max[idx_max] > fim):              #Só tem um min
+        if(idx_max >= len(Array_max) or Array_max[idx_max] > fim):              #Só tem um min
             return  max_drawdown
         
         if(df_close_value(inicio) > df_close_value(Array_max[idx_max])):    #caso o do inicio seja maior continua a testar, 
@@ -113,12 +113,12 @@ def drawdown_long(inicio, fim):
     idx_min_aux = idx_min + 1
     idx_max_aux = idx_max +1
     while True:
-            if(idx_max == len(Array_max) or Array_max[idx_max] > fim):          #Condições de saida quando termina em maximo local
+            if(idx_max >= len(Array_max) or Array_max[idx_max] > fim):          #Condições de saida quando termina em maximo local
                 if(inicio_max == False):
                     Array_max[temp_idx] = temp
                 return max_drawdown
             
-            elif(idx_min == len(Array_min) or Array_min[idx_min] > fim):    #Condições de saida quando termina em minimo local
+            elif(idx_min >= len(Array_min) or Array_min[idx_min] > fim):    #Condições de saida quando termina em minimo local
                 DD = drawdown(df_close_value(Array_max[idx_max]), df_close_value(fim))
                 if(DD > max_drawdown):
                     max_drawdown = DD
@@ -160,71 +160,8 @@ def drawdown_long(inicio, fim):
                     idx_min_aux +=1
                     if(DD > max_drawdown):
                         max_drawdown = DD
-        # else:
-        #     if(df_close_value(inicio) > df_close_value(Array_max[idx_max])):
-        #         if(idx_min_aux == len(Array_min) or Array_min[idx_min_aux] > fim): 
-        #             DD = drawdown(df_close_value(inicio), df_close_value(Array_min[idx_min])) #Vê o drawdown até ao ultimo minimo
-        #             idx_min +=1         
-        #             flag_max = True     #Entra no if da flag_max e como idx_min está fora do array_min, 
-        #                                 #então entra no elif de cima e faz drawdown com o utlimo valor
-        #             if(DD > max_drawdown):      
-        #                 max_drawdown = DD
-
-        #         elif(df_close_value(Array_min[idx_min]) > df_close_value(Array_min[idx_min_aux])):  #Próximo minimo é menor que o atual, logo passa a ser o novo idx_min
-        #             idx_min = idx_min_aux
-        #             idx_min_aux +=1
-        #             idx_max_aux +=1
-        #         else:                       #Caso em que o minimo atual é menor que o próximo, então faz o drawdown com o atual
-        #             DD = drawdown(df_close_value(Array_max[idx_max]), df_close_value(Array_min[idx_min]))
-        #             idx_min +=1
-        #             if(DD > max_drawdown):
-        #                 max_drawdown = DD
-
-
-# def max_drawdown(df, inicio, fim, type):
-#     if(type == 'short' or type == 0):
-#         Array1 = Array_min
-#         Array2 = Array_max 
-#         flag_max = not(drawdown_flag_init(inicio))
-#     if(type == 'long' or type == 1):
-#         Array1 = Array_max
-#         Array2 = Array_min 
-#         flag_max = drawdown_flag_init(inicio)
-#     if(flag_max == True):  #Caso em que o primeiro é minimo no caso do long e máximo no caso do short
-#         idx_Arr1 = find_next_index(Array1, inicio)
-#         if(Array1[idx_Arr1] > fim):
-#             return 0        #Não há drawdown, porque foi sempre a subir/descer(depende do tipo)
-#         idx_Arr2 = find_next_index(Array2, Array1[idx_Arr1])
-#         max_drawdown = drawdown(df_close_value(Array1[idx_Arr1]), df_close_value(Array2[idx_Arr2]))
-#         idx_Arr1+=1
-#         idx_Arr2+=1
-    
-#     else:                #Caso em que o primeiro é máximo no caso do long e minimo no caso do short
-#         idx_Arr2 = find_next_index(Array2, inicio)
-#         if(Array2[idx_Arr2] > fim):
-#             return drawdown(df_close_value(inicio), df_close_value(fim))        #Tudo foi drawdown, porque foi sempre a descer/subir(depende do tipo)
-#         else:
-#             max_drawdown = drawdown(df_close_value(inicio), df_close_value(Array2[idx_Arr2]))
-#             idx_Arr1 = find_next_index(Array1, Array2[idx_Arr2])
-#             idx_Arr2+=1
-#             flag_max = True
-
-#     while True:
-#         if(idx_Arr1 == len(Array1) or Array1[idx_Arr1] > fim):
-#             return max_drawdown
-#         elif(idx_Arr2 == len(Array2) or Array2[idx_Arr2] > fim):
-#             DD = drawdown(df_close_value(Array1[idx_Arr1]), df_close_value(fim))
-#             if(DD > max_drawdown):
-#                 max_drawdown = DD
-#             return max_drawdown
-#         else:
-#             DD = drawdown(df_close_value(Array1[idx_Arr1]), df_close_value(Array2[idx_Arr2]))
-#             idx_Arr1 +=1
-#             idx_Arr2 +=1
-#             if(DD > max_drawdown):
-#                 max_drawdown = DD
         
-     
+        
 def short_results(RSI_short, lls, uls):
     flag = False
     Roi_short = []
@@ -267,7 +204,6 @@ def short_results(RSI_short, lls, uls):
             Roi_short = np.append(Roi_short, ROI_short(sell_short, buy_short))
     
     return np.sum(Roi_short)
-
 
 def long_results(RSI_long, lll, ull):
     RSI_period_long = 'RSI_' + str((RSI_long+1)*7)
@@ -479,7 +415,7 @@ if __name__ == '__main__':
     # end = pd.to_datetime('31-12-2022', dayfirst=True)
     # start = pd.to_datetime('01-08-2023', dayfirst=True)
     # end = pd.to_datetime('15-09-2023', dayfirst=True)
-    start = pd.to_datetime('04-01-2023', dayfirst=True)
+    start = pd.to_datetime('05-01-2023', dayfirst=True)
     end = pd.to_datetime('12-01-2023', dayfirst=True) 
         
     for i in path:
@@ -498,13 +434,13 @@ if __name__ == '__main__':
         Value = np.zeros(runs)
         Best_genes = np.zeros([runs, 6]) 
         plt.plot(df['Date'], df['Close'])  
-        plt.scatter(df['Date'].iloc[Array_max.astype(int)], df['Close'].iloc[Array_max.astype(int)], color='red')
-        plt.scatter(df['Date'].iloc[Array_min.astype(int)], df['Close'].iloc[Array_min.astype(int)], color='green')
+        # plt.scatter(df['Date'].iloc[Array_max.astype(int)], df['Close'].iloc[Array_max.astype(int)], color='red')
+        # plt.scatter(df['Date'].iloc[Array_min.astype(int)], df['Close'].iloc[Array_min.astype(int)], color='green')
         plt.show()   
         # print(max_drawdown(df, 5,15, 'long'))
         # print(max_drawdown(df, 3, 9, 'long'))
         # print(max_drawdown(df, 12,30, 'long'))
-        print(drawdown_long(1, df['Close'].size-1))
+        print(drawdown_long(0, df['Close'].size-1))
         # print(drawdown_long(5,15))
         # print(drawdown_long(3, 9))
         # print(drawdown_long(12,30))
