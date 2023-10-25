@@ -3,11 +3,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from deap import base, creator, tools
 from sys import exit
-from icecream import ic
 import random
+
 def ROI_total(Roi_short_sum, Roi_long_sum):
     return (Roi_short_sum + Roi_long_sum) / 2
-
 
 def ROI_long(sell, buy):
     return ((sell - buy) / buy) * 100
@@ -33,7 +32,7 @@ def RSI(df):
 def RS(avg_gain, avg_loss):
     return avg_gain / avg_loss
 
-
+# Aceder aos dados[(Period)*21+(LImite)+63*(long:1, short:0)]
 def dados_value(RSI, limit, type, index):
     if(type == 'short' or type == 0):
         return int(dados[RSI*21+limit][index])
@@ -56,11 +55,7 @@ def dados_size(RSI, limit, type):
         print("ERRO, type mal")
         exit(1)
 
-def ROI_results(RSI_short, RSI_long, lll, ull, lls, uls):
-
-    #short
-    #print(7*(1+RSI_short), 7*(1+RSI_long), 5*lll, 5*ull, 5*lls, 5*uls, "\n")
-    #print(RSI_short, RSI_long, lll, ull, lls, uls, "\n")
+def short_results(RSI_short, lls, uls):
     flag = False
     Roi_short = []
     sell_short = 0
@@ -101,8 +96,11 @@ def ROI_results(RSI_short, RSI_long, lll, ull, lls, uls):
             buy_short = df['Close'].iloc[dados_value(RSI_short, lls, 'short', index_buy)]
             flag = False
             Roi_short = np.append(Roi_short, ROI_short(sell_short, buy_short))
+    
+    return np.sum(Roi_short)
 
-    #long
+
+def long_results(RSI_long, lll, ull):
     RSI_period_long = 'RSI_' + str((RSI_long+1)*7)
     index_buy = 0
     index_sell = 0  
@@ -141,13 +139,19 @@ def ROI_results(RSI_short, RSI_long, lll, ull, lls, uls):
             flag = False
             Roi_long = np.append(Roi_long, ROI_long(sell_long, buy_long))
 
-    # print("ROI_short:", np.sum(Roi_short))
-    # print("ROI_long:", np.sum(Roi_long))
-    return ROI_total(np.sum(Roi_short), np.sum(Roi_long))
+    return np.sum(Roi_long)
+
+def ROI_results(RSI_short, RSI_long, lll, ull, lls, uls):
+    short = short_results(RSI_short, lls, uls)
+    long = long_results(RSI_long, lll, ull)
+    return ROI_total(short, long), short, long
 
 
-# Aceder aos dados[(Period)*21+(LImite)+63*(long:1, short:0)]
-def pre_processing(df, dados):
+# Ordenação do array dados:[(Period)*21+(LImite)+63*(long:1, short:0)] (Acedido por função dados_value)
+def pre_processing(df):
+    dados = [[] for _ in range(21*3*2)]
+    Array_max = []
+    Array_min = []
     index = -1
     for i in range(7,22,7):
         RSI_period= 'RSI_' + str(i)
@@ -157,28 +161,27 @@ def pre_processing(df, dados):
                 if(df[RSI_period].size == idx+1):
                     break
                 else:
-                    if (value > j and df[RSI_period].iloc[idx+1] < j):
+                    if (value > j and df[RSI_period].iloc[idx+1] <= j):
                         dados[index] = np.append(dados[index],idx+1)
-                    if (value < j and df[RSI_period].iloc[idx+1] > j): #63-125 long
+                    if (value < j and df[RSI_period].iloc[idx+1] >= j): #63-125 long
                         dados[index+63] = np.append(dados[index+63],idx+1)  # mais 63 porque os primeiros 62 indices (21_limits*3_rsi_period) são do short
-
-
+                    # if
+    return dados, Array_max, Array_min 
 
 def evaluate(individual):
     genes = np.zeros(6, dtype=int)
     for idx, vars in enumerate(individual):
         genes[idx] = vars
-    return ROI_results(genes[0]-1, genes[1]-1, genes[2], genes[3], genes[4], genes[5]),
+    return ROI_results(genes[0], genes[1], genes[2], genes[3], genes[4], genes[5]),
     
-
 def create_EA():
     creator.create("FitnessMax", base.Fitness, weights=(1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMax)
 
     toolbox = base.Toolbox()
 
-    toolbox.register("RSI_short", random.randint, 1, 3)
-    toolbox.register("RSI_long", random.randint, 1, 3)
+    toolbox.register("RSI_short", random.randint, 0, 2)
+    toolbox.register("RSI_long", random.randint, 0, 2)
     toolbox.register("lll", random.randint, 0, 20)
     toolbox.register("ull", random.randint, 0, 20)
     toolbox.register("lls", random.randint, 0, 20)
@@ -197,10 +200,8 @@ def create_EA():
 
     return toolbox
 
-
 def EA(toolbox):
     
-
     pop = toolbox.population(n=100)
 
     CXPB, MUTPB = 0.6, 0.35
@@ -211,16 +212,15 @@ def EA(toolbox):
 
     g = 0
     Max_early = -1000
-    g_early = 0
+    # g_early = 0
     while g < 100:
         # A new generation 
         g = g + 1
         
-        # Select the next generation individuals
+        
         offspring = toolbox.select(pop, len(pop))
         # Clone the selected individuals
         offspring = list(map(toolbox.clone, offspring))
-    
         # Apply crossover and mutation on the offspring
         for child1, child2 in zip(offspring[::2], offspring[1::2]):
 
@@ -238,12 +238,10 @@ def EA(toolbox):
             # mutate an individual with probability MUTPB
             if random.random() < MUTPB:
                 toolbox.mutate(mutant)
-                if (mutant[0] < 1 or mutant[0]>3):
+                if (mutant[0]>2):
                     mutant[0]%= 3
-                    mutant[0]+=1
-                if (mutant[1] < 1 or mutant[1]>3):
-                    mutant[1]%=3
-                    mutant[1]+=1
+                if (mutant[1]>2):
+                    mutant[1]%=3 
                 del mutant.fitness.values
         # Evaluate the individuals with an invalid fitness
         invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
@@ -254,17 +252,16 @@ def EA(toolbox):
         pop[:] = offspring
         # Gather all the fitnesses in one list and print the stats
         fits = [ind.fitness.values[0] for ind in pop]
-        
-        length = len(pop)
-        mean = sum(fits) / length
-        sum2 = sum(x*x for x in fits)
-        std = abs(sum2 / length - mean**2)**0.5
+        # length = len(pop)
+        # mean = sum(fits) / length
+        # sum2 = sum(x*x for x in fits)
+        # std = abs(sum2 / length - mean**2)**0.5
         
         if(g%20==0):
             print("-- Generation %i --" % g)
             print("  Max %s" % Max_early)
-            print("  Avg %s" % mean)
-            print("  Std %s" % std)
+            # print("  Avg %s" % mean)
+            # print("  Std %s" % std)
 
         if (Max_early < max(fits)):
             Max_early = max(fits)
@@ -272,10 +269,10 @@ def EA(toolbox):
             # g_early = g
         # if (g - g_early > 40):
         #     print("\n-------------------------------Early stop---------------------------")
-        #     break
+        #     break        
     best_genes = np.array(best_ind)
-    print("Best individual is",best_genes[0:2] * 7,best_genes[2:]*5, best_ind.fitness.values[0])
-    return np.append (best_genes[0:2] * 7, best_genes[2:]*5), best_ind.fitness.values[0]
+    print("Best individual is",(best_genes[0:2]+1) * 7,best_genes[2:]*5, best_ind.fitness.values[0])
+    return np.append ((best_genes[0:2]+1) * 7, best_genes[2:]*5), best_ind.fitness.values[0]
 
 def drawdown_long(df, index1, index2):
     min = float('inf')
@@ -379,10 +376,10 @@ if __name__ == '__main__':
 
     toolbox = create_EA()
     # Read data from csv files
-    # start = pd.to_datetime('01-01-2020', dayfirst=True)
-    # end = pd.to_datetime('31-12-2022', dayfirst=True)
-    start = pd.to_datetime('01-08-2023', dayfirst=True)
-    end = pd.to_datetime('15-09-2023', dayfirst=True)
+    start = pd.to_datetime('01-01-2020', dayfirst=True)
+    end = pd.to_datetime('31-12-2022', dayfirst=True)
+    # start = pd.to_datetime('01-08-2023', dayfirst=True)
+    # end = pd.to_datetime('15-09-2023', dayfirst=True)
      
     for i in path:
         print("\n\n\n--------------Path ", i, "-------------------------\n\n")
@@ -394,30 +391,24 @@ if __name__ == '__main__':
         df['Gain'] = diff.where(diff > 0, 0)
         df['Loss'] = abs(diff.where(diff < 0, 0))
         df = RSI(df)
-        dados = [[] for _ in range(21*3*2)]   
-        pre_processing(df,dados)
+        dados,Array_max,Array_min = pre_processing(df)
         df.to_csv("df.csv")
         runs = 30
         Value = np.zeros(runs)
         Best_genes = np.zeros([runs, 6])
-
-
-
-
-
-    #     for j in range(0, runs):
-    #         print("\n\n--------------Run ", j, "-------------------------")
-    #         Best_genes[j], Value[j] = EA(toolbox)
-    #     MAX = np.max(Value)
-    #     indmax = np.argmax(Value)
-    #     MIN  = np.min(Value)
-    #     STD = np.std(Value)
-    #     Mean = np.mean(Value)
-    #     print("MAX:", MAX)
-    #     print("MIN:", MIN)
-    #     print("Mean:", Mean)
-    #     print("STD:", STD)
-    #     print("Best genes:", Best_genes[indmax])
+        for j in range(0, runs):
+            print("\n\n--------------Run ", j, "-------------------------")
+            Best_genes[j], Value[j] = EA(toolbox)
+        MAX = np.max(Value)
+        indmax = np.argmax(Value)
+        MIN  = np.min(Value)
+        STD = np.std(Value)
+        Mean = np.mean(Value)
+        print("MAX:", MAX)
+        print("MIN:", MIN)
+        print("Mean:", Mean)
+        print("STD:", STD)
+        print("Best genes:", Best_genes[indmax])
     #     np.save('Resultados/Best_genes/Best_' + i +'.npy', Best_genes)
     #     np.save('Resultados/Value/Val_'+ i +'.npy', Value)
     #     plt.figure(figsize=(12,10))
