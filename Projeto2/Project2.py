@@ -78,11 +78,15 @@ def find_next_index(Array,idx):
 def df_close_value(idx):
     return df['Close'].iloc[int(idx)]
 
+# def drawdown_short(inicio, fim):
+#     max_drawdown = 0
+#     flag_max = drawdown_flag_init(inicio)
+#     inicio_max = True
 
 def drawdown_long(inicio, fim):
     max_drawdown = 0
     flag_max = drawdown_flag_init(inicio)
-    inicio_max = True
+    inicio_max = False                      #Quando verdadeiro então o valor do inicio é maior que o próximo máximo
     if(flag_max == True):                   #Caso em que o primeiro é minimo
         idx_max = find_next_index(Array_max, inicio)
 
@@ -106,15 +110,15 @@ def drawdown_long(inicio, fim):
             temp = Array_max[idx_max]
             temp_idx = idx_max  
             Array_max[idx_max] = inicio
-            inicio_max = False
-        if(inicio_max == True): 
-            idx_min+=1  #Caso esteja a true quer dizer que passamos ao próximo par max-min
+            inicio_max = True
+        if(inicio_max == False): 
+            idx_min+=1  #Caso esteja a False quer dizer que passamos ao próximo par max-min
 
     idx_min_aux = idx_min + 1
     idx_max_aux = idx_max +1
     while True:
             if(idx_max >= len(Array_max) or Array_max[idx_max] > fim):          #Condições de saida quando termina em maximo local
-                if(inicio_max == False):
+                if(inicio_max):
                     Array_max[temp_idx] = temp
                 return max_drawdown
             
@@ -122,15 +126,14 @@ def drawdown_long(inicio, fim):
                 DD = drawdown(df_close_value(Array_max[idx_max]), df_close_value(fim))
                 if(DD > max_drawdown):
                     max_drawdown = DD
-                if(inicio_max == False):
+                if(inicio_max):
                     Array_max[temp_idx] = temp
                 return max_drawdown
             
             else:
                 if(idx_max_aux == len(Array_max) or Array_max[idx_max_aux] > fim):  #Condições para garantir que se encontra dentro do array
                     DD = drawdown(df_close_value(Array_max[idx_max]), df_close_value(Array_min[idx_min])) #Caso não esteja faz um ultimo drawdown
-                    idx_max +=1
-                    idx_min +=1 #?
+                    idx_max = idx_max_aux
                     if(DD > max_drawdown):
                         max_drawdown = DD
 
@@ -139,16 +142,18 @@ def drawdown_long(inicio, fim):
                     if(idx_min_aux == len(Array_min) or Array_min[idx_min_aux] > fim):             #Condições para garantir que se encontra dentro do array
                         DD = drawdown(df_close_value(Array_max[idx_max]), df_close_value(Array_min[idx_min])) #Vê o drawdown até ao ultimo minimo
                         idx_min +=1                 #Entra no elif de cima e verá também o drawdown em relação ao final, escolhendo o maior
-                        idx_max_aux +=1 #?
                         if(DD > max_drawdown):      
                             max_drawdown = DD
                     elif(df_close_value(Array_min[idx_min]) > df_close_value(Array_min[idx_min_aux])):  #Próximo minimo é menor que o atual, logo passa a ser o novo idx_min
+                        DD = drawdown(df_close_value(Array_max[idx_max]), df_close_value(Array_min[idx_min_aux]))
+                        if(DD > max_drawdown):
+                            max_drawdown = DD
                         idx_min = idx_min_aux
                         idx_min_aux +=1
                         idx_max_aux +=1
                     else:                       #Caso em que o minimo atual é menor que o próximo, então faz o drawdown com o atual
                         DD = drawdown(df_close_value(Array_max[idx_max]), df_close_value(Array_min[idx_min]))
-                        idx_min +=1
+                        idx_min_aux +=1
                         if(DD > max_drawdown):
                             max_drawdown = DD
             
@@ -405,7 +410,8 @@ if __name__ == '__main__':
     # path = ['AAL', 'AAPL', 'AMZN', 'BAC', 'F',
     #          'GOOG', 'IBM', 'INTC', 'NVDA', 'XOM']
     df = {}
-    path = ['Teste']
+    path = ['AAPL']
+    # path = ['Teste']
     runs = 5
     toolbox = create_EA()
     # Read data from csv files
@@ -415,8 +421,8 @@ if __name__ == '__main__':
     # end = pd.to_datetime('31-12-2022', dayfirst=True)
     # start = pd.to_datetime('01-08-2023', dayfirst=True)
     # end = pd.to_datetime('15-09-2023', dayfirst=True)
-    start = pd.to_datetime('05-01-2023', dayfirst=True)
-    end = pd.to_datetime('12-01-2023', dayfirst=True) 
+    start = pd.to_datetime('01-01-2020', dayfirst=True)
+    end = pd.to_datetime('06-01-2023', dayfirst=True) 
         
     for i in path:
         print("\n\n\n--------------Path ", i, "-------------------------\n\n")
@@ -433,22 +439,22 @@ if __name__ == '__main__':
         df.to_csv("df.csv")
         Value = np.zeros(runs)
         Best_genes = np.zeros([runs, 6]) 
+
+
         plt.plot(df['Date'], df['Close'])  
-        # plt.scatter(df['Date'].iloc[Array_max.astype(int)], df['Close'].iloc[Array_max.astype(int)], color='red')
-        # plt.scatter(df['Date'].iloc[Array_min.astype(int)], df['Close'].iloc[Array_min.astype(int)], color='green')
-        plt.show()   
-        # print(max_drawdown(df, 5,15, 'long'))
-        # print(max_drawdown(df, 3, 9, 'long'))
-        # print(max_drawdown(df, 12,30, 'long'))
         print(drawdown_long(0, df['Close'].size-1))
-        # print(drawdown_long(5,15))
-        # print(drawdown_long(3, 9))
-        # print(drawdown_long(12,30))
+        # print(drawdown_short(0, df['Close'].size-1))
+        plt.show() 
+
+
         # plt.plot(df['Date'], df['RSI_7'])
         # plt.plot(df['Date'], df['Close'])  
         # plt.scatter(df['Date'].iloc[Array_max.astype(int)], df['Close'].iloc[Array_max.astype(int)], color='red')
         # plt.scatter(df['Date'].iloc[Array_min.astype(int)], df['Close'].iloc[Array_min.astype(int)], color='green')
         # plt.show()   
+
+
+
         # random.seed(64)     
         # for j in range(0, runs):
         #     print("\n\n--------------Run ", j, "-------------------------")
