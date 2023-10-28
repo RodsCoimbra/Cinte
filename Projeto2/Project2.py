@@ -1,3 +1,4 @@
+from pickle import TRUE
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -5,6 +6,7 @@ from deap import base, creator, tools
 from sys import exit
 import random
 import bisect
+
 
 def ROI_total(Roi_short_sum, Roi_long_sum):
     return (Roi_short_sum + Roi_long_sum) / 2
@@ -20,7 +22,7 @@ def ROI_short(sell, buy):
 def drawdown(max, min):
     return abs((max - min) / max) *100
 
-def RSI(df):
+def RSI(df):        #Calcula o RSI para 7, 14 e 21 dias e mete no dataframe
     df['RSI_7'] = 100 - (100 / (1 +RS(df['Gain'].rolling(7).mean(),
                     df['Loss'].rolling(7).mean())))
     df['RSI_14'] = 100 - (100 / (1 +RS(df['Gain'].rolling(14).mean(),
@@ -411,7 +413,6 @@ def evaluate_nsga2(individual):
     return ROI, max_drawdown 
 
 
-# def create_EA(nsga2):
 def create_EA(nsga2):
     
     if nsga2:
@@ -435,10 +436,11 @@ def create_EA(nsga2):
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
     toolbox.register("evaluate", evaluate)
+    toolbox.register("evaluate_nsga2", evaluate_nsga2)
 
-    toolbox.register("mate", tools.cxTwoPoint)
+    toolbox.register("mate", tools.cxTwoPoint)    #Two point crossover
 
-    toolbox.register("mutate", tools.mutUniformInt, low= 0,up= 20, indpb=0.2)
+    toolbox.register("mutate", tools.mutUniformInt, low= 0, up= 20, indpb=0.2) 
 
     if nsga2:
         toolbox.register('select', tools.selNSGA2)
@@ -448,13 +450,20 @@ def create_EA(nsga2):
     return toolbox
 
 def EA(toolbox, nsga2):
-    CXPB, MUTPB = 0.6, 0.35
-    
-    pop = toolbox.population(n=100)
+    HallofFame = []
+    CXPB, MUTPB, pop_size, runs = 0.6, 0.35, 100, 100
     if nsga2:
-        HallofFame = tools.ParetoFront()
+        pop_size, runs = 64, 150  #Caso seja nsga2 a população tem de ser 64(pedido no enunciado) e portanto aumentamos as runs
+
+    pop = toolbox.population(n=pop_size)
+
+    if nsga2:
+        HallofFame = tools.ParetoFront()               
+        fitnesses = list(map(toolbox.evaluate_nsga2, pop))
         
-    fitnesses = list(map(toolbox.evaluate, pop))
+    else:    
+        fitnesses = list(map(toolbox.evaluate, pop))
+
     for ind, fit in zip(pop, fitnesses):
         ind.fitness.values = fit
     
@@ -464,7 +473,7 @@ def EA(toolbox, nsga2):
     g = 0
     Max_early = -1000
     # g_early = 0
-    while g < 100:
+    while g < runs:
         # A new generation 
         g = g + 1
         
@@ -498,186 +507,209 @@ def EA(toolbox, nsga2):
                 del mutant.fitness.values
         # Evaluate the individuals with an invalid fitness
         invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-        fitnesses = map(toolbox.evaluate, invalid_ind)
+        if nsga2:
+            fitnesses = list(map(toolbox.evaluate_nsga2, invalid_ind))
+        else:
+            fitnesses = list(map(toolbox.evaluate, invalid_ind))
         for ind, fit in zip(invalid_ind, fitnesses):
             ind.fitness.values = fit
         # The population is entirely replaced by the offspring
-        pop[:] = offspring
+        if nsga2:
+            pop = toolbox.select(pop + offspring, pop_size)
+            HallofFame.update(pop) 
+        else:
+            pop[:] = offspring
         # Gather all the fitnesses in one list and print the stats
         fits = [ind.fitness.values[0] for ind in pop]
-        # length = len(pop)
-        # mean = sum(fits) / length
-        # sum2 = sum(x*x for x in fits)
-        # std = abs(sum2 / length - mean**2)**0.5
+        if nsga2:
+            fits2 = [ind.fitness.values[1] for ind in pop]
         
-        if(g%20==0):
-            print("-- Generation %i --" % g)
-            print("  Max %s" % Max_early)
-            # print("  Avg %s" % mean)
-            # print("  Std %s" % std)
+        if not(nsga2):
+            if (Max_early < max(fits)):
+                Max_early = max(fits)
+                best_ind = tools.selBest(pop, 1)[0]
+        
 
-        if (Max_early < max(fits)):
-            Max_early = max(fits)
-            best_ind = tools.selBest(pop, 1)[0]
-            # g_early = g
-        # if (g - g_early > 40):
-        #     print("\n-------------------------------Early stop---------------------------")
-        #     break        
-    best_genes = np.array(best_ind)
-    print("Best individual is",(best_genes[0:2]+1) * 7,best_genes[2:]*5, best_ind.fitness.values[0])
-    return np.append ((best_genes[0:2]+1) * 7, best_genes[2:]*5), best_ind.fitness.values[0]
-
-
-def short_results2(RSI_short, lls, uls):
-    flag = False
-    Roi_short = []
-    index_buy = 0
-    index_sell = 0  
-    RSI_period_short = 'RSI_' + str((RSI_short+1)*7)
-    venda_final = False
-    if(dados_size(RSI_short, lls, 'short') == 0):
-        venda_final = True
-    while True:
-        if(flag == False):
-            if (index_sell >= dados_size(RSI_short, uls, 'short')):
-                break
-            else:
-                if (venda_final == True or dados_index(RSI_short, lls, 'short', index_buy) < dados_index(RSI_short, uls, 'short', index_sell)):  
-                    if(index_buy+1 >= dados_size(RSI_short, lls, 'short')):
-                        sell_short = df_close_value(dados_index(RSI_short, uls, 'short', index_sell))
-                        buy_short = df_close_value(df[RSI_period_short].size-1)
-                        Roi_short = np.append(Roi_short, ROI_short(sell_short, buy_short))   
-                        break         
-
-                    else:                 #Caso em que não terminou o array do buy
-                        index_buy+=1  
-
-                else:
-                    if(dados_index(RSI_short, lls, 'short', index_buy) == dados_index(RSI_short, uls, 'short', index_sell)):
-                        index_sell+=1
-                        continue
-                    sell_short = df_close_value(dados_index(RSI_short, uls, 'short', index_sell))
-                    flag = True
-                    while (dados_index(RSI_short, lls, 'short', index_buy) > dados_index(RSI_short, uls, 'short', index_sell)):
-                        if (index_sell+1 >= dados_size(RSI_short, uls, 'short')):
-                            index_sell+=1
-                            break
-                        else:
-                            index_sell+=1
-        else:               
-            buy_short = df_close_value(dados_index(RSI_short, lls, 'short', index_buy))
-            flag = False
-            Roi_short = np.append(Roi_short, ROI_short(sell_short, buy_short))
-    
-    return np.sum(Roi_short)
-
-def long_results2(RSI_long, lll, ull):
-    RSI_period_long = 'RSI_' + str((RSI_long+1)*7)
-    index_buy = 0
-    index_sell = 0  
-    Roi_long = []
-    flag = False
-    venda_final = False
-    if(dados_size(RSI_long, ull, 'long') == 0):
-        venda_final = True
-    while True:
-        if(flag == False):
-            if (index_buy >= dados_size(RSI_long, lll, 'long')):
-                break
-            else:
-                if (venda_final == True or dados_index(RSI_long, lll, 'long', index_buy) > dados_index(RSI_long, ull, 'long', index_sell)):  
-                    if(index_sell+1 >= dados_size(RSI_long, ull, 'long')):                #Se tiver mais algum para vender então vende                                                  
-                        buy_long = df_close_value(dados_index(RSI_long, lll, 'long', index_buy))
-                        sell_long = df_close_value(df[RSI_period_long].size-1)
-                        Roi_long = np.append(Roi_long, ROI_long(sell_long, buy_long))
-                        break 
-                    else:                           #Caso em que não terminou o array do sell        
-                        index_sell+=1
-                else:
-                    if(dados_index(RSI_long, lll, 'long', index_buy) == dados_index(RSI_long, ull, 'long', index_sell)):
-                        index_buy+=1
-                        continue
-                    buy_long = df_close_value(dados_index(RSI_long, lll, 'long', index_buy))
-                    flag = True
-                    while (dados_index(RSI_long, lll, 'long', index_buy) < dados_index(RSI_long, ull, 'long', index_sell)):
-                        if (index_buy+1 >= dados_size(RSI_long, lll, 'long')):
-                            index_buy+=1
-                            break
-                        else:
-                            index_buy+=1
-        else:
-            sell_long = df_close_value(dados_index(RSI_long, ull, 'long', index_sell))
-            flag = False
-            Roi_long = np.append(Roi_long, ROI_long(sell_long, buy_long))
-
-    return np.sum(Roi_long)
-
+    if not(nsga2):  
+        best_genes = np.array(best_ind)
+        # print("Best individual is",(best_genes[0:2]+1) * 7,best_genes[2:]*5, best_ind.fitness.values[0])
+        return best_genes, best_ind.fitness.values[0]
+    if nsga2:
+        return HallofFame
 
 
 if __name__ == '__main__':
-    nsga2 = False
+    #---------------------Variáveis a mudar-------------------------------------------------------------------------
+    nsga2 = False      #Mudar para False no caso de querer apenas maximizar o ROI e True para ambos
+
+
+    #Atenção que o train_test só funciona para maximizar o ROI, logo a flag nsga2 tem de estar a False!
+    Train_test = True   #Mudar para False no caso de querer treinar e testar em 2020-2022 e True para treinar em 2011-2019 e testar nos de 2020-2022
     
-    # path = ['AAL', 'AAPL', 'AMZN', 'BAC', 'F',
-    #          'GOOG', 'IBM', 'INTC', 'NVDA', 'XOM']
+    # Mudar o path para testar com outros dados
+    path = ['AAL', 'AAPL', 'AMZN', 'BAC', 'F', 'GOOG', 'IBM', 'INTC', 'NVDA', 'XOM']
+    
+    runs = 30  #Número de runs pretendidas
+
+    save_dados = TRUE #Mudar para True no caso de querer guardar os dados para usar em gráficos
+                       #Atenção que se True é necessário criar diretórios especificos para não dar erro,
+                       #Sendo esses, Resultados/HallofFameNSGA2, Resultados/ValuesNSGA2 e Resultados/Best_genesNSGA2 se nsga2 for True
+                       #e Resultados/Best_genes e Resultados/Values se nsga2 for False
+    #----------------------------------------------------------------------------------------------------------------
+
+
+    #30 cores diferentes para o gráfico das pareto fronts
+    colors = ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan','lime', 'teal', 'indigo', 'maroon', 'navy', 'salmon', 'gold', 'orchid', 'turquoise', 'slateblue',
+        'darkred', 'darkorange', 'forestgreen', 'mediumvioletred', 'saddlebrown', 'darkslategray', 'mediumseagreen', 'mediumslateblue', 'coral', 'cadetblue']
+    
     df = {}
-    path = ['AAPL']
-    runs = 30
     toolbox = create_EA(nsga2)
-    # Read data from csv files
-    # start = pd.to_datetime('01-01-2011', dayfirst=True)
-    # end = pd.to_datetime('31-12-2019', dayfirst=True)
-    start = pd.to_datetime('01-01-2020', dayfirst=True)
-    end = pd.to_datetime('31-12-2022', dayfirst=True)
-    # start = pd.to_datetime('01-08-2023', dayfirst=True)
-    # end = pd.to_datetime('15-09-2023', dayfirst=True)
-    # start = pd.to_datetime('01-01-2023', dayfirst=True)
-    # end = pd.to_datetime('01-06-2023', dayfirst=True) 
-        
-    for i in path:
-        print("\n\n\n--------------Path ", i, "-------------------------\n\n")
-        df = pd.read_csv('Data/' + i + '.csv', sep=';', decimal='.',
-                            usecols=['Date', 'Close'])
+
+    if(Train_test):
+        start = pd.to_datetime('01-01-2011', dayfirst=True)
+        end = pd.to_datetime('31-12-2019', dayfirst=True)
+        start2 = pd.to_datetime('01-01-2020', dayfirst=True)
+        end2 = pd.to_datetime('31-12-2022', dayfirst=True)
+    else:
+        start = pd.to_datetime('01-01-2020', dayfirst=True)
+        end = pd.to_datetime('31-12-2022', dayfirst=True)
+        start2 = None
+        end2 = None
+
+
+    for i in path:      
+        print("--------------Path ", i, "-------------------------")
+        print("A processar o ficheiro")
+        df = pd.read_csv('Data/' + i + '.csv', sep=';', decimal='.', usecols=['Date', 'Close'])
         df['Date'] = pd.to_datetime(df['Date'], dayfirst=True)
-        df = df[(df['Date'] >= start) & (df['Date'] <= end)]
-        diff = pd.Series(df['Close'].diff())
-        df['Gain'] = diff.where(diff > 0, 0)
-        df['Loss'] = abs(diff.where(diff < 0, 0))
+        df = df[(df['Date'] >= start) & (df['Date'] <= end)] #Limita o intervalo de tempo
+        diff = pd.Series(df['Close'].diff())    #Calcula a diferença entre o dia atual e o anterior
+        df['Gain'] = diff.where(diff > 0, 0)    #Caso seja positiva é ganho
+        df['Loss'] = abs(diff.where(diff < 0, 0))   #Caso seja negativa é perda
         df = RSI(df)
-        dados = pre_processing_dados(df)
-        Array_max, Array_min = pre_processing_drawdown(df)
-        Value = np.zeros(runs)
-        Best_genes = np.zeros([runs, 6]) 
+        dados = pre_processing_dados(df)            
+        if(Train_test):
+            df2 = pd.read_csv('Data/' + i + '.csv', sep=';', decimal='.', usecols=['Date', 'Close'])
+            df2['Date'] = pd.to_datetime(df2['Date'], dayfirst=True)
+            df2 = df2[(df2['Date'] >= start2) & (df2['Date'] <= end2)] #Limita o intervalo de tempo
+            diff = pd.Series(df2['Close'].diff())    #Calcula a diferença entre o dia atual e o anterior
+            df2['Gain'] = diff.where(diff > 0, 0)    #Caso seja positiva é ganho
+            df2['Loss'] = abs(diff.where(diff < 0, 0))   #Caso seja negativa é perda
+            df2 = RSI(df2)
+            dados2 = pre_processing_dados(df2)            
+            df_temp = df        #Guarda o valor para depois poder ir trocando o df principal
+            dados_temp = dados
+        if nsga2:
+            plt.figure(str(i))
+            Array_max, Array_min = pre_processing_drawdown(df)
+            if(Train_test):
+                print("Treino e teste não funciona para o NSGA2, como referido nos readme se desejar correr o NSGA2, por favor altere o Train_test para False e volte a correr o programa\n")
+                print("Caso contrário se desejar correr o programa para treino e teste, então altere o nsga2 para False e volte a correr o programa\n")
+                exit(0)
+            if(save_dados):
+                Value_Roi = np.zeros([runs, 2])
+                Value_DD = np.zeros([runs, 2])
+                Best_genes_Roi = np.zeros([runs, 6]) 
+                Best_genes_DD =  np.zeros([runs, 6])
+                ROI_Hall = []
+                DD_Hall = []
+                sizes = []
 
+            for j in range(0, runs):
+                print("\n\n--------------Run ", j,"  Path ", i,"-------------------------")
+                HallofFame = EA(toolbox, nsga2)
+                plt.scatter([ind.fitness.values[0] for ind in HallofFame], [ind.fitness.values[1] for ind in HallofFame], color = colors[j]) 
+                print("Best ROI:", HallofFame[0].fitness.values[0], HallofFame[0].fitness.values[1])
+                print("Best DD:", HallofFame[-1].fitness.values[0],HallofFame[-1].fitness.values[1])
+                if(save_dados):
+                    Best_genes_Roi[j] = HallofFame[0]
+                    Best_genes_DD[j] = HallofFame[-1]
+                    Value_Roi[j] = HallofFame[0].fitness.values[0], HallofFame[0].fitness.values[1]
+                    Value_DD[j] = HallofFame[-1].fitness.values[0],HallofFame[-1].fitness.values[1]
+                    for ind in HallofFame:
+                        ROI_Hall = np.append(ROI_Hall, ind.fitness.values[0])
+                        DD_Hall = np.append(DD_Hall, ind.fitness.values[1])
+                    sizes = np.append(sizes, len(HallofFame))
+                
+                
+            if(save_dados):
+                np.save('Resultados/HallofFameNSGA2/size_'+ i +'.npy', sizes)
+                np.save('Resultados/HallofFameNSGA2/HallofFame_ROI_'+ i +'.npy', ROI_Hall)
+                np.save('Resultados/HallofFameNSGA2/HallofFame_DD_'+ i +'.npy', DD_Hall)
+                np.save('Resultados/ValuesNSGA2/Val_ROI_'+ i +'.npy', Value_Roi)
+                np.save('Resultados/ValuesNSGA2/Val_DD_'+ i +'.npy', Value_DD)
+                np.save('Resultados/Best_genesNSGA2/Best_genes_ROI_'+ i +'.npy', Best_genes_Roi)
+                np.save('Resultados/Best_genesNSGA2/Best_genes_DD_'+ i +'.npy', Best_genes_DD)
+ 
+            plt.xlabel('ROI (Maximize)', fontsize=15)
+            plt.ylabel('Drawdown (Minimize)', fontsize=15)
+            plt.tight_layout()
+            plt.show()
 
-        # plt.plot(df['Date'].iloc[51:68], df['Close'].iloc[51:68])
-        # plt.plot(df['Date'], df['Close'])  
-        # plt.scatter(df['Date'].iloc[Array_max.astype(int)], df['Close'].iloc[Array_max.astype(int)], color='red')
-        # plt.scatter(df['Date'].iloc[Array_min.astype(int)], df['Close'].iloc[Array_min.astype(int)], color='green')
-        # plt.show()   
+            #Caso tenha vários valores maximos de ROI iguais, escolher o melhor Drawdown
+            MAX = np.max(Value_Roi[:,0])	
+            mask = np.array(Value_Roi[:,0] == MAX)
+            masked_array = Value_Roi[mask,1]
+            MIN_value_DD = np.min(masked_array) #Menor valor para o maior ROI
+                    
 
-
-        # random.seed(100)
-        # for i in range(0,1000):
-        #     a = random.randint(0, df['Close'].size-1)
-        #     b = random.randint(0, df['Close'].size-1)
-        #     if(a > b):
-        #         a,b = b,a
-        #     if(find_max_drawdown(df['Close'], a, b) != drawdown_long(a, b)):
-        #         print(i, "-> ",a,b,  find_max_drawdown(df['Close'], a, b), drawdown_long(a, b))  
-
-
+            #Caso tenha vários valores minimos de Drawdown iguais, escolher o melhor ROI
+            MIN  = np.min(Value_DD[:,1])
+            mask2 = np.array(Value_DD[:,1] == MIN)
+            masked_array2 = Value_DD[mask2,0]
+            Max_value_ROI = np.max(masked_array2)  #Maior valor para o menor drawdown
+            print("\n\nValores Finais para o Path ", i, ":")
+            print("MAX -> ROI:", MAX, "DD:", MIN_value_DD)
+            print("MIN -> ROI:", Max_value_ROI, "DD:", MIN)
         
-        for j in range(0, runs):
-            print("\n\n--------------Run ", j, "-------------------------")
-            Best_genes[j], Value[j] = EA(toolbox, nsga2)
-        MAX = np.max(Value)
-        indmax = np.argmax(Value)
-        MIN  = np.min(Value)
-        STD = np.std(Value)
-        Mean = np.mean(Value)
-        print("MAX:", MAX)
-        print("MIN:", MIN)
-        print("Mean:", Mean)
-        print("STD:", STD)
-        print("Best genes:", Best_genes[indmax])
-        
+        else:
+            Value = np.zeros(runs)
+            Best_genes = np.zeros([runs, 6], dtype=int)
+            if(Train_test):
+                Value_test = np.zeros(runs)   
+
+            for j in range(0, runs):
+                print("\n\n--------------Run ", j,"  Path ", i,"-------------------------")
+                Best_genes[j], Value[j] = EA(toolbox, nsga2) 
+                if(Train_test):
+                    print("Melhor ROI treino:", Value[j])       
+                    df = df2
+                    dados = dados2
+                    Value_test[j] = ROI_results(Best_genes[j][0], Best_genes[j][1], Best_genes[j][2], Best_genes[j][3], Best_genes[j][4], Best_genes[j][5], 0)
+                    print("\nROI de teste para a melhor estratégia:", Value_test[j])
+                    df = df_temp
+                    dados = dados_temp
+                else:
+                    print("Melhor ROI:", Value[j])
+
+
+            MAX = np.max(Value)
+            MIN  = np.min(Value)
+            STD = np.std(Value)
+            MEAN = np.mean(Value)
+            if(Train_test):
+                print("\n\nValores para o periodo de treino do Path ", i, ":")
+            else:
+                print("\n\nValores Finais para o Path ", i, ":")
+            print("MAX:", MAX)
+            print("MIN:", MIN)
+            print("Mean:", MEAN)
+            print("STD:", STD)
+            if(save_dados):
+                if(Train_test):
+                    np.save('Resultados/Best_genes/Best_train_' + i +'.npy', Best_genes)
+                    np.save('Resultados/Value/Val_train_'+ i +'.npy', Value)
+                    np.save('Resultados/Value/Val_test_'+ i +'.npy', Value_test)
+                else:
+                    np.save('Resultados/Best_genes/Best_' + i +'.npy', Best_genes)
+                    np.save('Resultados/Value/Val_'+ i +'.npy', Value)
+            if(Train_test):
+                MAX2 = np.max(Value_test)
+                MIN2  = np.min(Value_test)
+                STD2 = np.std(Value_test)
+                MEAN2 = np.mean(Value_test)
+                print("\nValores para o periodo de teste do Path ", i, ":")
+                print("MAX:", MAX2)
+                print("MIN:", MIN2)
+                print("Mean:", MEAN2)
+                print("STD:", STD2)
